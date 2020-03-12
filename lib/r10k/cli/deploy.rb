@@ -82,6 +82,7 @@ try to deploy the given module names in all environments.
           DESCRIPTION
 
           required :e, :environment, 'Update the modules in the given environment'
+          flag :s, 'sync-env', 'sync environment before deploying modules'
 
           runner R10K::Action::CriRunner.wrap(R10K::Action::Deploy::Module)
         end

@@ -136,4 +136,91 @@ describe R10K::Action::Deploy::Module do
       expect(subject.instance_variable_get(:@cachedir)).to eq('/nonexistent')
     end
   end
+
+  describe "with sync-env" do
+
+    let(:deployment) do
+      R10K::Deployment.new(
+          sources: {
+              control: {
+                  type: :mock,
+                  basedir: '/some/nonexistent/path/control',
+                  environments: %w[first]
+              }
+          }
+      )
+    end
+
+    before do
+      allow(R10K::Deployment).to receive(:new).and_return(deployment)
+    end
+
+    context 'sync-env is enabled' do
+      subject do
+        described_class.new(
+            {
+                config: '/some/nonexistent/path',
+                'sync-env': true,
+                environment: 'first'
+            },
+            %w[first]
+        )
+      end
+
+      it 'sync-env is true' do
+        expect(subject.instance_variable_get(:@sync)).to eq(true)
+      end
+
+      it 'sync-env environment' do
+        expect(subject).to receive(:visit_environment).and_wrap_original do |original, environment, &block|
+          expect(environment).to receive(:sync)
+          original.call(environment, &block)
+        end
+        subject.call
+      end
+
+      it 'calls write environment info' do
+        expect(subject).to receive(:visit_environment).and_wrap_original do |original, environment, &block|
+          expect(subject).to receive(:write_environment_info!)
+          original.call(environment, &block)
+        end
+        subject.call
+      end
+
+    end
+
+    context 'sync-env is disabled' do
+      subject do
+        described_class.new(
+            {
+                config: '/some/nonexistent/path',
+                'sync-env': false,
+                environment: 'first'
+            },
+            %w[first]
+        )
+      end
+
+      it 'sync-env is false' do
+        expect(subject.instance_variable_get(:@sync)).to eq(false)
+      end
+
+      it 'doesnt sync environment' do
+        expect(subject).to receive(:visit_environment).and_wrap_original do |original, environment, &block|
+          expect(environment).not_to receive(:sync)
+          original.call(environment, &block)
+        end
+        subject.call
+      end
+
+      it 'doesnt call write environment info' do
+        expect(subject).to receive(:visit_environment).and_wrap_original do |original, environment, &block|
+          expect(subject).not_to receive(:write_environment_info!)
+          original.call(environment, &block)
+        end
+        subject.call
+      end
+
+    end
+  end
 end
