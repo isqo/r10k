@@ -51,12 +51,12 @@ module R10K
           if @opts[:environment] && (@opts[:environment] != environment.dirname)
             logger.debug1(_("Only updating modules in environment %{opt_env} skipping environment %{env_path}") % {opt_env: @opts[:environment], env_path: environment.path})
           else
+            logger.debug1(_("Updating modules %{modules} in environment %{env_path}") % {modules: @argv.inspect, env_path: environment.path})
             if @sync
               started_at = Time.new
               logger.info _("Deploying environment %{env_path}") % {env_path: environment.path}
               environment.sync
               logger.info _("Environment %{env_dir} is now at %{env_signature}") % {env_dir: environment.dirname, env_signature: environment.signature}
-              logger.debug1(_("Updating modules %{modules} in environment %{env_path}") % {modules: @argv.inspect, env_path: environment.path})
             end
             yield
             if @sync
