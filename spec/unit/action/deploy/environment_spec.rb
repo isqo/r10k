@@ -78,6 +78,66 @@ describe R10K::Action::Deploy::Environment do
       end
     end
 
+    describe "with only-modules" do
+
+      subject { described_class.new({ config: "/some/nonexistent/path", puppetfile: true, :'only-modules' => 'my_cool_module,my_amazing_module,unknown'}, %w[first]) }
+
+      let(:mock_config) do
+        R10K::Deployment::MockConfig.new(
+            :sources => {
+                :control => {
+                    :type => :mock,
+                    :basedir => '/some/nonexistent/path/control',
+                    :environments => %w[first],
+                }
+            }
+        )
+      end
+
+      let(:deployment) do
+        R10K::Deployment.new(mock_config)
+      end
+
+      before do
+        allow(R10K::Deployment).to receive(:new).and_return(deployment)
+        allow(subject).to receive(:visit_environment).and_wrap_original do |original, environment, &block|
+          allow(environment.puppetfile).to receive(:modules).and_return([
+                  R10K::Module::Local.new("my_cool_module", '/first', [], environment),
+                  R10K::Module::Local.new("my_amazing_module", '/second', [], environment),
+                  R10K::Module::Local.new("my_legacy_module", '/third', [], environment)]
+
+          )
+          original.call(environment, &block)
+        end
+      end
+
+      it "modules that aren't in only-modules list shouldn't be synced" do
+        expect(subject).to receive(:visit_module).and_wrap_original do |original, mod, &block|
+          if mod.name == 'my_legacy_module'
+            expect(mod).not_to receive(:sync)
+          end
+          original.call(mod, &block)
+        end.exactly(3).times
+        subject.call
+      end
+
+      it "modules that are in only-modules list should be synced" do
+        expect(subject).to receive(:visit_module).and_wrap_original do |original, mod, &block|
+          if mod.name == 'my_cool_module' || mod.name == 'my_amazing_module'
+            expect(mod).to receive(:sync)
+          end
+          original.call(mod, &block)
+        end.exactly(3).times
+        subject.call
+      end
+
+      it "unknown modules should remain in the only-modules list after syncing, to get logged" do
+        subject.call
+        expect(subject.only_modules).to include("unknown")
+        expect(subject.only_modules).not_to include("my_cool_module","my_amazing_module")
+      end
+    end
+
     describe "postrun" do
       context "basic postrun hook" do
         let(:settings) { { postrun: ["/path/to/executable", "arg1", "arg2"] } }

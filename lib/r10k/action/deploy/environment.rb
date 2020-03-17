@@ -14,6 +14,7 @@ module R10K
         include R10K::Action::Deploy::DeployHelpers
 
         attr_reader :force
+        attr_reader :only_modules
 
         def initialize(opts, argv, settings = nil)
           settings ||= {}
@@ -25,6 +26,7 @@ module R10K
 
           # @force here is used to make it easier to reason about
           @force = !@no_force
+          @only_modules=opts[:'only-modules'].nil? ? nil : opts[:'only-modules'].split(",")
           @argv = @argv.map { |arg| arg.gsub(/\W/,'_') }
         end
 
@@ -105,6 +107,8 @@ module R10K
             yield
             @environment_ok = @visit_ok
             @visit_ok &&= previous_ok
+            # print only unknown puppet modules, known modules are removed in visit_module
+            @only_modules.each{|modname| logger.error(_("%{name} module doesn't exist in %{puppetfile_path}") % {name: modname , puppetfile_path: environment.puppetfile.puppetfile_path})} if ! @only_modules.nil?
           end
 
           if @purge_levels.include?(:environment)
@@ -140,8 +144,14 @@ module R10K
         end
 
         def visit_module(mod)
-          logger.info _("Deploying %{origin} content %{path}") % {origin: mod.origin, path: mod.path}
-          mod.sync(force: @force)
+          if @only_modules.nil? || @only_modules.include?(mod.name)
+            logger.info _("Deploying %{origin} content %{path}") % {origin: mod.origin, path: mod.path}
+            # keep only unknown puppet file modules
+            @only_modules.delete(mod.name) if ! @only_modules.nil?
+            mod.sync(force: @force)
+          else
+            logger.debug1(_("Only updating modules in only_modules list %{only_modules} in env %{env}, skipping module %{module}") % {only_modules: @only_modules,env: mod.environment, module: mod.name})
+          end
         end
 
         def write_environment_info!(environment, started_at, success)
@@ -184,7 +194,8 @@ module R10K
                       'no-force': :self,
                       'generate-types': :self,
                       'puppet-path': :self,
-                      'default-branch-override': :self)
+                      'default-branch-override': :self,
+                      'only-modules': :self,)
         end
       end
     end
